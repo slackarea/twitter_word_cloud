@@ -2,18 +2,50 @@ import tweepy
 import pandas as pd
 from wordcloud import WordCloud, STOPWORDS
 import matplotlib.pyplot as plt
-from textblob import TextBlob
+from textblob import TextBlob, classifiers
 import imageio
+import argparse
+import datetime
 
-# Go to https://apps.twitter.com/ and create an app.
-# The consumer key and secret will be generated for you after
-consumer_key = "pj63sSUxRoR3R8USM0SKLA"
-consumer_secret = "aduMWwb5J4wytrsntNvMqDCALwTQKXgbugrHJmmXpRw"
+from training import training
+from testing import testing
 
-# After the step above, you will be redirected to your app's page.
-# Create an access token under the the "Create New App" section
-access_token = "427724240-CLI4CUyybcts66ZfAs1XQW4wZg1xyH9KQNYvPQuy"
-access_token_secret = "riJgO5e61GgCS0u4i4cVcuP4f8kZ1rPvCFyoDOMBY0yzh"
+from secrets import (consumer_key, consumer_secret,
+                     access_token, access_token_secret)
+
+__version__ = '0.1-dev'
+
+parser = argparse.ArgumentParser(description="Twitter WordCloud Analyzer "
+                                 "version %s" % __version__,
+                                 usage='%(prog)s -q <query_name> [options]')
+parser.add_argument('-q', '--query', required=True, metavar="query_name",
+                    help='target query_name (required)')
+parser.add_argument('-l', '--limit', metavar='limit', type=int, default=1000,
+                    help="limit the number of tweets "
+                         "to retreive (default=1000)")
+parser.add_argument('-L', '--lang', metavar='lang', default='it',
+                    help='target lang code (default=it)')
+parser.add_argument('-u', '--until', metavar='until',
+                    default=datetime.date.today(),
+                    help='target until date YYYY-MM-DD format. Keep in mind '
+                    'that the search index has a 7-day limit. In other words, '
+                    'no tweets will be found for a date older than one week. '
+                    '(default=today)')
+args = parser.parse_args()
+
+query = args.query
+limit = args.limit
+lang = args.lang
+date = args.until
+
+date_name = datetime.datetime.now().strftime("%d_%m_%Y_%H_%M_%S")
+
+classifier = classifiers.NaiveBayesClassifier(training)
+# dt_classifier = classifiers.DecisionTreeClassifier(training)
+print(classifier.accuracy(testing))
+classifier.show_informative_features(3)
+blob = TextBlob('mattarella non ha il nostro appoggio', classifier=classifier)
+print(blob.classify())
 
 # Interacting with twitter's API
 auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
@@ -22,13 +54,10 @@ auth.set_access_token(access_token, access_token_secret)
 api = tweepy.API(auth, wait_on_rate_limit=True)
 results = []
 for tweet in tweepy.Cursor(api.search,
-                           q="giletarancioni",
-                           lang="it").items(4000):
+                           q=query,
+                           until=date,
+                           lang=lang).items(limit):
     results.append(tweet)
-
-print(type(results))
-print(len(results))
-# print(results[2000].text)
 
 
 def tweets_df(results):
@@ -78,8 +107,21 @@ for i in range(0, len(text)):
         SentimentClass = 'Neutral'
         data_set.at[i, 'SentimentClass'] = SentimentClass
 
+for i in range(0, len(text)):
+    textC = TextBlob(text[i], classifier=classifier)
+    classify = textC.classify()
+    data_set.at[i, 'Classify'] = classify
+    if classify == 'neg':
+        ClassifyClass = 'Negative'
+        data_set.at[i, 'ClassifyClass'] = ClassifyClass
+    elif classify == 'pos':
+        SentimentClass = 'Positive'
+        data_set.at[i, 'ClassifyClass'] = ClassifyClass
+    else:
+        SentimentClass = 'Neutral'
+        data_set.at[i, 'ClassifyClass'] = ClassifyClass
 
-data_set.to_csv("hashtag.csv")
+data_set.to_csv('hashtag_' + date_name + '.csv')
 
 Htag_df = pd.DataFrame()
 j = 0
@@ -93,21 +135,20 @@ for tweet in range(0, len(results)):
 
 
 Mattarella_Htag_wordcloud = Htag_df.groupby('Hashtag').size()
-Mattarella_Htag_wordcloud.to_csv("mattarella_Htag_wordcloud.csv")
+Mattarella_Htag_wordcloud.to_csv('query_htag_wordcloud_' + date_name + '.csv')
 
 # Join all the text from the 1000 tweets
 Hashtag_Combined = " ".join(Htag_df['Hashtag'].values.astype(str))
 
-no_mattarella = " ".join([word for word in Hashtag_Combined.split()
-                          if word != 'mattarella'
-                          and word != 'Mattarella'])
+no_query = " ".join([word for word in Hashtag_Combined.split()
+                    if word != query])
 
 Tweet_mask = imageio.imread("twitter_mask.png", as_gray=True)
 
 # Create a Word Cloud
 wc = WordCloud(background_color="white", stopwords=STOPWORDS, mask=Tweet_mask)
-wc.generate(no_mattarella)
+wc.generate(no_query)
 plt.imshow(wc)
 plt.axis("off")
-plt.savefig('mattarella_Hashtag.png', dpi=300)
+plt.savefig('query_hashtag_' + date_name + '.png', dpi=300)
 plt.show()
