@@ -7,7 +7,7 @@ imageio==2.8.0
 joblib==0.15.1
 kiwisolver==1.2.0
 matplotlib==3.2.2
-nltk==3.5
+nltk>=3.6.4
 numpy==1.19.0
 oauthlib==3.1.0
 pandas==1.0.5
@@ -23,5 +23,5 @@ six==1.15.0
 textblob==0.15.3
 tqdm==4.46.1
 tweepy==3.8.0
-urllib3=>=1.26.5
+urllib3>=1.26.5
 wordcloud==1.7.0
